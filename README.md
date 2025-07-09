@@ -1,4 +1,4 @@
-# SpiderBot 🕷️
+# SpiderBot
 
 A microservices-based web crawler system built with Node.js, Docker, and modern web technologies.
 
