@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  spiderbot-api-gateway:
+    build:
+      context: ./services/api-gateway
+    ports:
+      - "${API_GATEWAY_PORT}:3000"
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - REDIS_HOST=spiderbot-redis
+      - REDIS_PORT=6379
+    depends_on:
+      - spiderbot-redis
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-data-extraction:
+    build:
+      context: ./services/data-extraction
+    volumes:
+      - ./services/data-extraction:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - REDIS_HOST=spiderbot-redis
+      - REDIS_PORT=6379
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+    depends_on:
+      - spiderbot-redis
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-data-storage:
+    build:
+      context: ./services/data-storage
+    volumes:
+      - ./services/data-storage:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - MONGO_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@spiderbot-mongo:27017/${MONGO_DB}?authSource=admin
+      - REDIS_HOST=spiderbot-redis
+      - REDIS_PORT=6379
+    depends_on:
+      - spiderbot-mongo
+      - spiderbot-redis
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-search-indexing:
+    build:
+      context: ./services/search-indexing
+    volumes:
+      - ./services/search-indexing:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - ELASTICSEARCH_HOST=spiderbot-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=spiderbot-redis
+      - REDIS_PORT=6379
+    depends_on:
+      - spiderbot-elasticsearch
+      - spiderbot-redis
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-task-scheduler:
+    build:
+      context: ./services/task-scheduler
+    volumes:
+      - ./services/task-scheduler:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - REDIS_HOST=spiderbot-redis
+      - REDIS_PORT=6379
+    depends_on:
+      - spiderbot-redis
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  # Database and caching services
+  spiderbot-mongo:
+    image: mongo:latest
+    ports:
+      - "${MONGO_PORT}:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    volumes:
+      - spiderbot-mongo-data:/data/db
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    ports:
+      - "${ELASTICSEARCH_PORT}:9200"
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - spiderbot-elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+  spiderbot-redis:
+    image: redis:latest
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - spiderbot-redis-data:/data
+    networks:
+      - spiderbot-network
+    restart: unless-stopped
+
+networks:
+  spiderbot-network:
+    driver: bridge
+
+volumes:
+  spiderbot-mongo-data:
+  spiderbot-elasticsearch-data:
+  spiderbot-redis-data:
